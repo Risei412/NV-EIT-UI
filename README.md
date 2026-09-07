@@ -14,7 +14,7 @@ It does **not** claim unconstrained exponent identification.
 
 ```
 nveit_runtime/     pure functions (no file I/O)
-apps/api/          Lambda handler
+apps/api/          Lambda handler + local server
 apps/web/          static UI
 infra/             SAM template
 ```
@@ -27,8 +27,31 @@ python -m nveit_runtime.cli --preset lambda
 python apps/api/local_server.py   # http://127.0.0.1:8080
 ```
 
-Open `apps/web/index.html` (set `API_URL` to the local server or a Function URL).
+## Lambda (ap-northeast-1)
 
-## Lambda (later)
+Needs AWS CLI + [SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html), and an IAM user/role that can deploy CloudFormation.
 
-Container image from `apps/api/Dockerfile`. POST `/spectrum` with the JSON body documented in `nveit_runtime/api.py`.
+```bash
+aws configure   # region: ap-northeast-1
+cd infra
+sam build
+sam deploy
+```
+
+Deploy output includes `SpectrumApi`, for example:
+
+```
+https://xxxx.execute-api.ap-northeast-1.amazonaws.com/spectrum
+```
+
+Check:
+
+```bash
+curl -s -X POST "$SPECTRUM_API" \
+  -H 'content-type: application/json' \
+  -d '{"preset":"lambda","omega_c":0.8,"gamma_g":0}'
+```
+
+Then open `apps/web/index.html` and set **API URL** to that endpoint (saved in the browser). Local server still uses `/spectrum` on the same origin.
+
+First invoke may take a few seconds (cold start + numpy).
