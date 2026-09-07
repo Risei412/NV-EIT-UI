@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NV-EIT-UI</title>
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <style>
+    :root { font-family: ui-sans-serif, system-ui, sans-serif; color: #111; background: #f6f4ef; }
+    body { max-width: 1100px; margin: 24px auto; padding: 0 16px; }
+    h1 { font-size: 1.4rem; margin: 0 0 4px; }
+    .sub { color: #555; margin-bottom: 16px; }
+    .row { display: grid; grid-template-columns: 280px 1fr; gap: 20px; }
+    @media (max-width: 800px) { .row { grid-template-columns: 1fr; } }
+    fieldset { border: 1px solid #ccc; background: #fff; }
+    label { display: flex; justify-content: space-between; gap: 8px; margin: 6px 0; font-size: 0.9rem; }
+    input { width: 7rem; }
+    button { width: 100%; margin-top: 10px; padding: 8px; font-weight: 600; cursor: pointer; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; margin: 12px 0; }
+    .card { background: #fff; border: 1px solid #ddd; padding: 8px 10px; }
+    .card b { display: block; font-size: 0.75rem; color: #666; }
+    .WINDOW_PRESENT { color: #0a6; }
+    .SHALLOW { color: #b80; }
+    .ABSENT { color: #b00; }
+    .note { font-size: 0.8rem; color: #666; margin-top: 16px; }
+    #status { min-height: 1.2em; font-size: 0.85rem; color: #444; }
+  </style>
+</head>
+<body>
+  <h1>NV-EIT-UI</h1>
+  <p class="sub">パラメータ → 透過スペクトルと EIT 窓の特徴量。主張の正本は NV-EIT-space。</p>
+  <div class="row">
+    <form id="form">
+      <fieldset>
+        <legend>入力</legend>
+        <label>Ωc <input name="omega_c" type="number" step="0.05" value="0.8"></label>
+        <label>γe <input name="gamma_e" type="number" step="0.05" value="1"></label>
+        <label>γg <input name="gamma_g" type="number" step="0.001" value="0"></label>
+        <label>Δc <input name="delta_c" type="number" step="0.05" value="0"></label>
+        <label>OD <input name="optical_depth" type="number" step="0.1" value="3"></label>
+        <label>δ min <input name="delta_min" type="number" step="0.5" value="-5"></label>
+        <label>δ max <input name="delta_max" type="number" step="0.5" value="5"></label>
+        <label>点数 <input name="n_points" type="number" step="1" value="401"></label>
+        <button type="submit">スペクトルを計算</button>
+        <div id="status"></div>
+      </fieldset>
+    </form>
+    <div>
+      <div id="chart" style="height:360px;background:#fff;"></div>
+      <div class="cards" id="cards"></div>
+    </div>
+  </div>
+  <p class="note">
+    教科書 Λ の線形応答です。γg = 0 で深い窓が出ます。NV 光学の浅いコントラストから指数 ν を無制約に読む主張はしません。
+    API: 同じオリジンの <code>POST /spectrum</code>。Lambda の Function URL を使う場合は下記 <code>API_URL</code> を書き換えてください。
+  </p>
+<script>
+const API_URL = "/spectrum";
+const form = document.getElementById("form");
+const status = document.getElementById("status");
+const cards = document.getElementById("cards");
+
+form.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const fd = new FormData(form);
+  const params = {};
+  for (const [k, v] of fd.entries()) params[k] = Number(v);
+  params.preset = "lambda";
+  status.textContent = "計算中…";
+  try {
+    const res = await fetch(API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(params),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || res.statusText);
+    draw(data);
+    status.textContent = data.window.verdict;
+  } catch (err) {
+    status.textContent = "エラー: " + err.message;
+  }
+});
+
+function draw(data) {
+  const s = data.spectrum;
+  const w = data.window;
+  Plotly.newPlot("chart", [
+    { x: s.detuning, y: s.T_full, name: "T full", line: { color: "#1d4" } },
+    { x: s.detuning, y: s.T_cut, name: "T cut", line: { color: "#888", dash: "dot" } },
+  ], {
+    margin: { t: 24, r: 16, b: 40, l: 48 },
+    xaxis: { title: "detuning δ" },
+    yaxis: { title: "transmission T", rangemode: "tozero" },
+    legend: { orientation: "h" },
+    paper_bgcolor: "#fff",
+  }, { responsive: true });
+
+  const items = [
+    ["判定", w.verdict],
+    ["中心 δ0", fmt(w.center_detuning)],
+    ["FWHM", w.fwhm == null ? "—" : fmt(w.fwhm)],
+    ["深さ", fmt(w.depth)],
+    ["T at window", fmt(w.T_at_window)],
+    ["Cmax", w.C_max == null ? "—" : Number(w.C_max).toExponential(3)],
+    ["ΔA", fmt(w.delta_A_at_peak)],
+  ];
+  cards.innerHTML = items.map(([k, v]) => {
+    const cls = k === "判定" ? w.verdict : "";
+    return `<div class="card"><b>${k}</b><span class="${cls}">${v}</span></div>`;
+  }).join("");
+}
+
+function fmt(x) {
+  if (x == null || Number.isNaN(x)) return "—";
+  return Number(x).toFixed(4);
+}
+</script>
+</body>
+</html>
