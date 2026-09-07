@@ -1,0 +1,27 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: NV-EIT-UI spectrum API
+
+Globals:
+  Function:
+    Timeout: 30
+    MemorySize: 1024
+    Architectures: [arm64]
+
+Resources:
+  SpectrumFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: nv-eit-ui-spectrum
+      PackageType: Image
+      ImageUri: !Ref ImageUri
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            Path: /spectrum
+            Method: POST
+
+Parameters:
+  ImageUri:
+    Type: String
