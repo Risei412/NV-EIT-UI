@@ -7,21 +7,32 @@ Globals:
     Timeout: 30
     MemorySize: 1024
     Architectures: [arm64]
+  HttpApi:
+    CorsConfiguration:
+      AllowOrigins:
+        - "*"
+      AllowHeaders:
+        - content-type
+      AllowMethods:
+        - POST
+        - OPTIONS
 
 Resources:
   SpectrumFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: nv-eit-ui-spectrum
-      PackageType: Image
-      ImageUri: !Ref ImageUri
+      Runtime: python3.12
+      Handler: apps.api.handler.lambda_handler
+      CodeUri: ..
       Events:
-        Api:
+        Spectrum:
           Type: HttpApi
           Properties:
             Path: /spectrum
             Method: POST
 
-Parameters:
-  ImageUri:
-    Type: String
+Outputs:
+  SpectrumApi:
+    Description: POST this URL from the UI
+    Value: !Sub "https://${ServerlessHttpApi}.execute-api.${AWS::Region}.amazonaws.com/spectrum"
